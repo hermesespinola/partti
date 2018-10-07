@@ -1,5 +1,4 @@
 import argparse
-import os, glob
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,61 +8,67 @@ ap.add_argument("-i", "--image", required=True,
                 help="Path to the image to be scanned")
 args = vars(ap.parse_args())
 
-gray = cv2.imread(args['image'], cv2.IMREAD_GRAYSCALE)
-_, src = cv2.threshold(gray, 0, 100, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
+src = cv2.imread(args['image'], cv2.IMREAD_UNCHANGED)
+gray = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY)
+hsv = cv2.cvtColor(src, cv2.COLOR_BGR2HSV)
+
+lower_blue = np.array([80, 50, 50])
+upper_blue = np.array([130, 255, 255])
+blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
 kernel = np.ones((5, 5), np.uint8)
-src = cv2.dilate(src, kernel, iterations=5)  # dilate so regions are highlighted
+blue_mask = cv2.dilate(blue_mask, kernel, iterations=2)
+blue_mask = cv2.erode(blue_mask, kernel, iterations=2)
 
-# column sum
-x_distribution = np.array(cv2.reduce(src, 0, cv2.REDUCE_SUM, dtype=cv2.CV_32S)[0], dtype=float)
+im2, blue_contours, hierarchy = cv2.findContours(blue_mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+left_most, up_most, right_most, down_most = src.shape[1], -1, -1, src.shape[0]
+found = 0
+print("points of reference:")
+for c in blue_contours:
+    # calculate moments for each contour
+    M = cv2.moments(c)
 
-# Find max change in x
-grad_x = np.gradient(x_distribution)
-len_x = len(grad_x)
-gradd_x = [x for x in grad_x]
-max_left, min_left = np.argmax(grad_x[:len_x//2]), np.argmin(grad_x[:len_x//2])
-left = min(max_left, min_left)
-src[:,:left] = grad_x[:left] = 0
-max_right, min_right = np.argmax(grad_x[len_x//2:][::-1]), np.argmin(grad_x[len_x//2:][::-1])
-right = len(grad_x) - max(max_right, min_right)
-src[:,right:] = grad_x[right:] = 0
+    # calculate x,y coordinate of center
+    cX = int(M["m10"] / M["m00"])
+    cY = int(M["m01"] / M["m00"])
+    cArea = cv2.contourArea(c)
+    if cArea > 1000:
+        found += 1
+        if found > 4:
+            print("ERROR. More than 4 points of reference.")
+            exit(1)
+        src = cv2.circle(src, (cX, cY), 15, (0, 255, 0), 3)
+        if cX < left_most:
+            left_most = cX
+        if cX > right_most:
+            right_most = cX
+        if cY < down_most:
+            down_most = cY
+        if cY > up_most:
+            up_most = cY
+    print "\tx:%d  y:%d area:%d" % (cX, cY, cArea)
+if found < 4:
+    print("ERROR. Not enough points of reference.")
+    exit(1)
+gray = gray[down_most:up_most, left_most:right_most]  # crop
+plt.subplot(1, 2, 1)
+to_crop = cv2.rectangle(src, (left_most, up_most), (right_most, down_most), (0, 255, 255), 3)
+plt.imshow(to_crop[..., ::-1])  # BGR -> RGB
+plt.title('original')
 
-# row sum
-y_distribution = cv2.reduce(src, 1, cv2.REDUCE_SUM, dtype=cv2.CV_32S)
-y_distribution = np.array(y_distribution).flatten()
-
-# Find max change in y
-grad_y = np.gradient(y_distribution)
-len_y = len(grad_y)
-gradd_y = [y for y in grad_y]
-max_left, min_left = np.argmax(grad_y[:len_y//2]), np.argmin(grad_y[:len_y//2])
-left = min(max_left, min_left)
-src[:left,:] = grad_y[:left] = 0
-max_right, min_right = np.argmax(grad_y[len_y//2:][::-1]), np.argmin(grad_y[len_y//2:][::-1])
-right = len(grad_y) - min(max_right, min_right)
-src[right:,:] = grad_y[right:] = 0
+_, tresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
+kernel = np.ones((5, 5), np.uint8)
+tresh = cv2.dilate(tresh, kernel, iterations=5)  # dilate to highlight regions
 
 # contours
-im, _contours, hierarchy = cv2.findContours(src, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+im, _contours, hierarchy = cv2.findContours(tresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 contours = [con for con in _contours if cv2.contourArea(con) > 15000]
-print(len(contours))
-
-plt.subplot(2, 2, 1)
-y_pos = np.arange(len(x_distribution))
-plt.bar(y_pos, gradd_x, align='center')
-plt.title('horizontal')
-
-plt.subplot(2, 2, 3)
-y_pos = np.arange(len(y_distribution))
-plt.barh(y_pos, gradd_y, align='center')
-plt.gca().invert_yaxis()
-plt.title('vertical')
+print("valid blobs found: %d" % len(contours))
 
 plt.subplot(1, 2, 2)
-res = cv2.bitwise_and(gray, gray, mask=src)
+res = cv2.bitwise_and(gray, gray, mask=tresh)
 res = cv2.drawContours(res, contours, -1, (255, 0, 0), 2)
 plt.imshow(res, cmap='gray', interpolation='nearest')
-plt.title('image')
+plt.title('cropped & segmented')
 
 plt.show()
 
