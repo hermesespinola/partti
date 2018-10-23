@@ -2,6 +2,7 @@ import argparse
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+from notes import remove_horizontal_lines, match_notes
 
 ap = argparse.ArgumentParser()
 ap.add_argument("-i", "--image", required=True,
@@ -50,7 +51,7 @@ if found < 4:
     print("ERROR. Not enough points of reference.")
     exit(1)
 gray = gray[down_most:up_most, left_most:right_most]  # crop
-plt.subplot(1, 2, 1)
+plt.subplot(1, 3, 1)
 to_crop = cv2.rectangle(src, (left_most, up_most), (right_most, down_most), (0, 255, 255), 3)
 plt.imshow(to_crop[..., ::-1])  # BGR -> RGB
 plt.title('original')
@@ -59,16 +60,28 @@ _, tresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
 kernel = np.ones((5, 5), np.uint8)
 tresh = cv2.dilate(tresh, kernel, iterations=5)  # dilate to highlight regions
 
+gray = remove_horizontal_lines(gray)
 # contours
 im, _contours, hierarchy = cv2.findContours(tresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-contours = [con for con in _contours if cv2.contourArea(con) > 15000]
+contours = []
+for con in _contours:
+    if cv2.contourArea(con) > 15000:
+        cv2.drawContours(tresh, [con], 0, 255, -1)  # contour filling
+        contours.append(con)
 print("valid blobs found: %d" % len(contours))
 
-plt.subplot(1, 2, 2)
+
+plt.subplot(1, 3, 2)
 res = cv2.bitwise_and(gray, gray, mask=tresh)
 res = cv2.drawContours(res, contours, -1, (255, 0, 0), 2)
 plt.imshow(res, cmap='gray', interpolation='nearest')
-plt.title('cropped & segmented')
+plt.title('cropped, segmented & \nhorizontal lines removed')
+
+plt.subplot(1, 3, 3)
+notes = cv2.imread('data/notes.png', cv2.IMREAD_GRAYSCALE)
+note_matches = match_notes(notes, res)
+plt.imshow(note_matches)
+plt.title('note matches')
 
 plt.show()
 
