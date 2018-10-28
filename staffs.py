@@ -5,8 +5,6 @@ import matplotlib.pyplot as plt
 from sliding_window import pyramid, sliding_window
 import time
 import matplotlib.pyplot as plt
-from skimage.feature import hog
-from skimage import exposure
 
 ap = argparse.ArgumentParser()
 ap.add_argument("-i", "--image", required=True,
@@ -26,11 +24,11 @@ grad_x = np.gradient(x_distribution)
 len_x = len(grad_x)
 gradd_x = [x for x in grad_x]
 max_left, min_left = np.argmax(grad_x[:len_x//2]), np.argmin(grad_x[:len_x//2])
-left = min(max_left, min_left)
-src[:,:left] = grad_x[:left] = 0
+left_most = min(max_left, min_left)
+src[:,:left_most] = grad_x[:left_most] = 0
 max_right, min_right = np.argmax(grad_x[len_x//2:][::-1]), np.argmin(grad_x[len_x//2:][::-1])
-right = len(grad_x) - max(max_right, min_right)
-src[:,right:] = grad_x[right:] = 0
+right_most = len(grad_x) - max(max_right, min_right)
+src[:,right_most:] = grad_x[right_most:] = 0
 
 # row sum
 y_distribution = cv2.reduce(src, 1, cv2.REDUCE_SUM, dtype=cv2.CV_32S)
@@ -41,64 +39,96 @@ grad_y = np.gradient(y_distribution)
 len_y = len(grad_y)
 gradd_y = [y for y in grad_y]
 max_left, min_left = np.argmax(grad_y[:len_y//2]), np.argmin(grad_y[:len_y//2])
-left = min(max_left, min_left)
-src[:left,:] = grad_y[:left] = 0
+down_most = min(max_left, min_left)
+src[:down_most,:] = grad_y[:down_most] = 0
 max_right, min_right = np.argmax(grad_y[len_y//2:][::-1]), np.argmin(grad_y[len_y//2:][::-1])
-right = len(grad_y) - min(max_right, min_right)
-src[right:,:] = grad_y[right:] = 0
+up_most = len(grad_y) - min(max_right, min_right)
+src[up_most:,:] = grad_y[up_most:] = 0
+
+gray = gray[down_most:up_most, left_most:right_most]  # crop
+to_crop = cv2.rectangle(src, (left_most, up_most), (right_most, down_most), (0, 255, 255), 3)
+
+_, _tresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
+kernel = np.ones((5, 5), np.uint8)
+tresh = cv2.dilate(_tresh, kernel, iterations=5)  # dilate to highlight regions
 
 # contours
-im, _contours, hierarchy = cv2.findContours(src, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-contours = [con for con in _contours if cv2.contourArea(con) > 15000]
-print(len(contours))
+im, _contours, hierarchy = cv2.findContours(tresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+contours = []
+staff_crops = []
+for con in _contours:
+    if cv2.contourArea(con) > 24000:
+        cv2.drawContours(tresh, [con], 0, 255, -1)  # contour filling
+        contours.append(con)
+        epsilon = 0.01 * cv2.arcLength(con, True)
+        approx = cv2.approxPolyDP(con, epsilon, True)
+        left_most, up_most, right_most, down_most = _tresh.shape[1], -1, -1, _tresh.shape[0]
+        for coord in approx:
+            cX=coord[0][0]
+            cY=coord[0][1]
+            if cX < left_most:
+                left_most = cX
+            if cX > right_most:
+                right_most = cX
+            if cY < down_most:
+                down_most = cY
+            if cY > up_most:
+                up_most = cY
+        staff_crops.append(_tresh[down_most:up_most, left_most:right_most])
+valid_blobs = len(contours)
+print("valid blobs found: %d" % valid_blobs)
 
-plt.subplot(2, 2, 1)
-y_pos = np.arange(len(x_distribution))
-plt.bar(y_pos, gradd_x, align='center')
-plt.title('horizontal')
-
-plt.subplot(2, 2, 3)
-y_pos = np.arange(len(y_distribution))
-plt.barh(y_pos, gradd_y, align='center')
-plt.gca().invert_yaxis()
-plt.title('vertical')
-
-plt.subplot(1, 2, 2)
-res = cv2.bitwise_and(gray, gray, mask=src)
+res = cv2.bitwise_and(gray, gray, mask=tresh)
 res = cv2.drawContours(res, contours, -1, (255, 0, 0), 2)
-plt.imshow(res, cmap='gray', interpolation='nearest')
-plt.title('image')
 
+columns = 3
+plt.subplot2grid((1, columns), (0, 0)), plt.title('original'), plt.imshow(to_crop[..., ::-1])  # BGR -> RGB
+plt.subplot2grid((1, columns), (0, 1)), plt.title('cropped & segmented'), plt.imshow(res, cmap='gray', interpolation='nearest')
+for i in range(valid_blobs):
+    staff_crop = staff_crops[valid_blobs-1-i]
+
+    x_distribution = cv2.reduce(staff_crop, 0, cv2.REDUCE_SUM, dtype=cv2.CV_32S)[0]  # column sum
+
+    plt.subplot2grid((valid_blobs, columns), (i, columns-1), rowspan=1), plt.title('notes %d' % (i+1))
+    min = staff_crop.shape[1] * 255
+    x_1 = -1
+    for val in x_distribution[50:len(x_distribution)-50]:
+        if val < min:
+            min = val
+    min += 2000
+    # print 'notes %d' % (i+1)
+    # print "min: %d" % min
+    staff_crop_binary = staff_crop.copy()
+    staff_crop = cv2.cvtColor(staff_crop, cv2.COLOR_GRAY2RGB)
+    for j in range(len(x_distribution)):
+        val = x_distribution[j]
+        if val < min and x_1 != -1 and j-x_1 > 5:
+            # print "ENDS from %d to %d: %d" % (x_1, j, val)
+            longest_consecutive = 0
+            count = 0
+            y_start = 0
+            y_end = staff_crop.shape[0]
+            note_horizontal_crop = staff_crop_binary[0:staff_crop.shape[0], x_1:j]
+            y_distribution = np.array(cv2.reduce(note_horizontal_crop, 1, cv2.REDUCE_SUM, dtype=cv2.CV_32S).flatten())  # row sum
+            for k in range(len(y_distribution)):
+                row_sum = y_distribution[k]
+                if row_sum > 0:
+                    if count == 0:
+                        y_start_temp = k
+                    count += 1
+                else:
+                    if count > longest_consecutive:
+                        longest_consecutive = count
+                        y_start = y_start_temp
+                        y_end = k
+                    count = 0
+            staff_crop = cv2.rectangle(staff_crop, (x_1, y_start), (j, y_end), (255, 0, 0), 1)
+            x_1 = -1
+        elif val > min and x_1 == -1:
+            # print "STARTS at %d: %d" % (j, val)
+            x_1 = j
+    plt.imshow(staff_crop)
 plt.show()
+
 cv2.waitKey()
 cv2.destroyAllWindows()
-
-winW, winH = 32, 128
-hogDescriptor = cv2.HOGDescriptor('hog.xml')
-for cnt in contours:
-    x,y,w,h = cv2.boundingRect(cnt)
-    staff = gray[y:y+h,x:x+w]
-
-    # loop over the staff pyramid
-    for resized in pyramid(staff, scale=10):
-        # loop over the sliding window for each layer of the pyramid
-        for (x, y, window) in sliding_window(resized, stepSize=8, windowSize=(winW, winH)):
-            # if the window does not meet our desired window size, ignore it
-            if window.shape[0] != winH or window.shape[1] != winW:
-                continue
-
-            fd, hog_image = hog(window, orientations=8, pixels_per_cell=(4, 4),
-                    cells_per_block=(8, 8), visualize=True, multichannel=False, block_norm='L2-Hys')
-            print(fd, fd.shape if not isinstance(fd, tuple) else None)
-
-            # since we do not have a classifier, we'll just draw the window
-            clone = resized.copy()
-            cv2.rectangle(clone, (x, y), (x + winW, y + winH), (0, 255, 0), 2)
-            cv2.imshow("Window", clone)
-            cv2.imshow('Window real', window)
-            cv2.imshow('Window hog', hog_image)
-            cv2.waitKey(0) # (1)
-            # time.sleep(0.025)
-    cv2.destroyAllWindows()
-
-cv2.imshow('bozes', res)
