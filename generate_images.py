@@ -22,9 +22,6 @@ def update_plots():
 
 def onclick(event):
     global x, y
-    # print('%s click: button=%d, x=%f, y=%f, xdata=%f, ydata=%f' %
-    #       ('double' if event.dblclick else 'single', event.button,
-    #        event.x, event.y, event.xdata, event.ydata))
     x = int(event.xdata)
     y = int(event.ydata)
     update_plots()
@@ -32,7 +29,6 @@ def onclick(event):
 
 def press(event):
     global x, y, w, h, ratio, ratio_locked, images, crop
-    # print "key: %s" % event.key
     if event.key == 'right':
         x += translate
     elif event.key == 'left':
@@ -74,8 +70,8 @@ def press(event):
             ratio_locked = True
             print "ratio locked: %0.2f" % ratio
     elif event.key == ' ':
-        cv2.imwrite("%simage_%d.jpg" % (target_dir, images), crop)
         images += 1
+        cv2.imwrite("%simage_%d.jpg" % (target_dir, images), crop)
         print "image saved!"
     ratio = h*1.0 / w
     update_plots()
