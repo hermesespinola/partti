@@ -1,8 +1,8 @@
+#!/usr/local/bin/python3
 import argparse
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-import time
 from staff_lines import find_lines
 
 ap = argparse.ArgumentParser()
@@ -10,13 +10,21 @@ ap.add_argument("-i", "--image", required=True,
                 help="Path to the image to be scanned")
 args = vars(ap.parse_args())
 
-gray = cv2.imread(args['image'], cv2.IMREAD_GRAYSCALE)
-_, src = cv2.threshold(gray, 0, 100, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
+src = cv2.imread(args['image'], cv2.IMREAD_UNCHANGED)
+gray = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY)
+
+_, _tresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
 kernel = np.ones((5, 5), np.uint8)
-src = cv2.dilate(src, kernel, iterations=5)  # dilate so regions are highlighted
+tresh = cv2.dilate(_tresh, kernel, iterations=5)  # dilate to highlight regions
 
 # column sum
-x_distribution = np.array(cv2.reduce(src, 0, cv2.REDUCE_SUM, dtype=cv2.CV_32S)[0], dtype=float)
+x_distribution = np.array(cv2.reduce(tresh, 0, cv2.REDUCE_SUM, dtype=cv2.CV_32S)[0], dtype=float)
+y_pos_horizontal = np.arange(len(x_distribution))
+
+# row sum
+y_distribution = cv2.reduce(tresh, 1, cv2.REDUCE_SUM, dtype=cv2.CV_32S)
+y_distribution = np.array(y_distribution).flatten()
+y_pos_vertical = np.arange(len(y_distribution))
 
 # Find max change in x
 grad_x = np.gradient(x_distribution)
@@ -24,14 +32,10 @@ len_x = len(grad_x)
 gradd_x = [x for x in grad_x]
 max_left, min_left = np.argmax(grad_x[:len_x//2]), np.argmin(grad_x[:len_x//2])
 left_most = min(max_left, min_left)
-src[:,:left_most] = grad_x[:left_most] = 0
+# grad_x[:left_most] = 0
 max_right, min_right = np.argmax(grad_x[len_x//2:][::-1]), np.argmin(grad_x[len_x//2:][::-1])
 right_most = len(grad_x) - max(max_right, min_right)
-src[:,right_most:] = grad_x[right_most:] = 0
-
-# row sum
-y_distribution = cv2.reduce(src, 1, cv2.REDUCE_SUM, dtype=cv2.CV_32S)
-y_distribution = np.array(y_distribution).flatten()
+# grad_x[right_most:] = 0
 
 # Find max change in y
 grad_y = np.gradient(y_distribution)
@@ -39,17 +43,15 @@ len_y = len(grad_y)
 gradd_y = [y for y in grad_y]
 max_left, min_left = np.argmax(grad_y[:len_y//2]), np.argmin(grad_y[:len_y//2])
 down_most = min(max_left, min_left)
-src[:down_most,:] = grad_y[:down_most] = 0
+# grad_y[:down_most] = 0
 max_right, min_right = np.argmax(grad_y[len_y//2:][::-1]), np.argmin(grad_y[len_y//2:][::-1])
 up_most = len(grad_y) - min(max_right, min_right)
-src[up_most:,:] = grad_y[up_most:] = 0
+# grad_y[up_most:] = 0
 
 gray = gray[down_most:up_most, left_most:right_most]  # crop
+tresh = tresh[down_most:up_most, left_most:right_most]  # crop
+_tresh = _tresh[down_most:up_most, left_most:right_most]  # crop
 to_crop = cv2.rectangle(src, (left_most, up_most), (right_most, down_most), (0, 255, 255), 3)
-
-_, _tresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
-kernel = np.ones((5, 5), np.uint8)
-tresh = cv2.dilate(_tresh, kernel, iterations=5)  # dilate to highlight regions
 
 ## I'll keep this, just in case we need it
 # _kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
@@ -67,21 +69,8 @@ for con in _contours:
     if cv2.contourArea(con) > 24000:
         cv2.drawContours(tresh, [con], 0, 255, -1)  # contour filling
         contours.append(con)
-        epsilon = 0.01 * cv2.arcLength(con, True)
-        approx = cv2.approxPolyDP(con, epsilon, True)
-        left_most, up_most, right_most, down_most = _tresh.shape[1], -1, -1, _tresh.shape[0]
-        for coord in approx:
-            cX=coord[0][0]
-            cY=coord[0][1]
-            if cX < left_most:
-                left_most = cX
-            if cX > right_most:
-                right_most = cX
-            if cY < down_most:
-                down_most = cY
-            if cY > up_most:
-                up_most = cY
-        staff_crops.append(_tresh[down_most:up_most, left_most:right_most])
+        x, y, w, h = cv2.boundingRect(con)
+        staff_crops.append(_tresh[y:y+h, x:x+w])
 valid_blobs = len(contours)
 print("valid blobs found: %d" % valid_blobs)
 
