@@ -2,9 +2,8 @@ import argparse
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
-from sliding_window import pyramid, sliding_window
 import time
-import matplotlib.pyplot as plt
+from staff_lines import find_lines
 
 ap = argparse.ArgumentParser()
 ap.add_argument("-i", "--image", required=True,
@@ -52,6 +51,14 @@ _, _tresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
 kernel = np.ones((5, 5), np.uint8)
 tresh = cv2.dilate(_tresh, kernel, iterations=5)  # dilate to highlight regions
 
+## I'll keep this, just in case we need it
+# _kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+# closed = cv2.morphologyEx(_tresh, cv2.MORPH_CLOSE, _kernel)
+# opened = cv2.morphologyEx(_tresh, cv2.MORPH_OPEN, _kernel)
+
+# Finding lines
+# without_notes = _tresh - opened
+
 # contours
 im, _contours, hierarchy = cv2.findContours(tresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 contours = []
@@ -81,9 +88,10 @@ print("valid blobs found: %d" % valid_blobs)
 res = cv2.bitwise_and(gray, gray, mask=tresh)
 res = cv2.drawContours(res, contours, -1, (255, 0, 0), 2)
 
-columns = 3
-plt.subplot2grid((1, columns), (0, 0)), plt.title('original'), plt.imshow(to_crop[..., ::-1])  # BGR -> RGB
-plt.subplot2grid((1, columns), (0, 1)), plt.title('cropped & segmented'), plt.imshow(res, cmap='gray', interpolation='nearest')
+columns = 2
+# plt.subplot2grid((1, columns), (0, 0)), plt.title('original'), plt.imshow(to_crop[..., ::-1])  # BGR -> RGB
+plt.subplot2grid((1, columns), (0, 0)), plt.title('cropped & segmented'), plt.imshow(res, cmap='gray', interpolation='nearest')
+note_rects = [[] for _ in range(valid_blobs)]
 for i in range(valid_blobs):
     staff_crop = staff_crops[valid_blobs-1-i]
 
@@ -95,7 +103,7 @@ for i in range(valid_blobs):
     for val in x_distribution[50:len(x_distribution)-50]:
         if val < min:
             min = val
-    min += 2000
+    min += 1800
     # print 'notes %d' % (i+1)
     # print "min: %d" % min
     staff_crop_binary = staff_crop.copy()
@@ -122,6 +130,7 @@ for i in range(valid_blobs):
                         y_start = y_start_temp
                         y_end = k
                     count = 0
+            note_rects[valid_blobs-1-i].append(((x_1, y_start), (j, y_end)))
             staff_crop = cv2.rectangle(staff_crop, (x_1, y_start), (j, y_end), (255, 0, 0), 1)
             x_1 = -1
         elif val > min and x_1 == -1:
@@ -132,3 +141,6 @@ plt.show()
 
 cv2.waitKey()
 cv2.destroyAllWindows()
+
+for i, staff_crop in enumerate(staff_crops):
+    find_lines(staff_crop, note_rects[valid_blobs-1-i], True)
