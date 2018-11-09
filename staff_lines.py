@@ -3,10 +3,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks_cwt
 
+
 def pairwise(it):
     it = iter(it)
     while True:
         yield next(it), next(it)
+
 
 def peaks(y_hist):
     y_hist = enumerate(iter(y_hist))
@@ -21,6 +23,7 @@ def peaks(y_hist):
         nxt = val
         if prev < current > nxt:
             yield i, current
+
 
 def find_bigger_gaps(rects):
     gaps = [(rects[0][1][0], rects[1][0][0]), (rects[1][1][0], rects[2][0][0])]
@@ -41,12 +44,13 @@ def find_bigger_gaps(rects):
             gap_sizes[1] = gap_size
     return tuple(gaps)
 
+
 def find_lines(staff, notes_rects, show=False):
     # Find bigger gaps between notes
     gaps = find_bigger_gaps(notes_rects)
     staff_height = staff.shape[1]
     gap_centers = ((gaps[0][1] + gaps[0][0]) // 2, (gaps[1][1] + gaps[1][0]) // 2)
-    
+
     gap_images = (staff[:, gaps[0][0]:gaps[0][1]], staff[:, gaps[1][0]:gaps[1][1]])
     dist = lambda im: np.array(cv2.reduce(im, 1, cv2.REDUCE_SUM, dtype=cv2.CV_32S))
     distributions = (dist(gap_images[0]), dist(gap_images[1]))
@@ -72,7 +76,7 @@ def find_lines(staff, notes_rects, show=False):
     if show:
         for line in lines:
             print(line)
-            cv2.line(staff,line[0],line[1],(255,0,0), 3)
+            cv2.line(staff, line[0], line[1], (255, 0, 0), 3)
         print('')
 
         # plot distributions
