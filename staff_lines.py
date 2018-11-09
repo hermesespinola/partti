@@ -53,9 +53,11 @@ def find_lines(staff, notes_rects, show=False):
     distributions = (distributions[0].flatten(), distributions[1].flatten())
 
     # Find histogram peaks
-    peak_widths = np.arange(1, 5)
+    peak_widths = np.arange(1, 3)
     peaks1 = [(i, distributions[0][i]) for i in find_peaks_cwt(distributions[0], peak_widths)]
     peaks2 = [(i, distributions[1][i]) for i in find_peaks_cwt(distributions[1], peak_widths)]
+    print(peaks1)
+    print(peaks2, end='\n\n')
 
     # Create five sorted lines with highest points
     p1s = sorted(peaks1, key=lambda x: -x[1])[:5]
