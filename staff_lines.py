@@ -60,8 +60,9 @@ def find_lines(staff, notes_rects, show=False):
     peak_widths = np.arange(1, 3)
     peaks1 = [(i, distributions[0][i]) for i in find_peaks_cwt(distributions[0], peak_widths)]
     peaks2 = [(i, distributions[1][i]) for i in find_peaks_cwt(distributions[1], peak_widths)]
+    print('peaks')
     print(peaks1)
-    print(peaks2, end='\n\n')
+    print(peaks2, end='\n')
 
     # Create five sorted lines with highest points
     p1s = sorted(peaks1, key=lambda x: -x[1])[:5]
@@ -70,15 +71,15 @@ def find_lines(staff, notes_rects, show=False):
     p2s = sorted(peaks2, key=lambda x: -x[1])[:5]
     p2s = sorted(p2s, key=lambda x: x[0])
     p2s = map(lambda x: (gap_centers[1], x[0]), p2s)
-    lines = zip(p2s, p1s)
+    lines = list(zip(p2s, p1s))
 
     # Show results
+    print('lines')
+    for line in lines:
+        print(line)
+        cv2.line(staff, line[0], line[1], (255, 0, 0), 3)
+    print('')
     if show:
-        for line in lines:
-            print(line)
-            cv2.line(staff, line[0], line[1], (255, 0, 0), 3)
-        print('')
-
         # plot distributions
         idxs = np.arange(len(distributions[0]))
         plt.bar(idxs, distributions[0].flatten(), align='center')

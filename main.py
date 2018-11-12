@@ -27,13 +27,6 @@ tresh = tresh[vertical_crop[0]:vertical_crop[1], horizontal_crop[0]:horizontal_c
 _tresh = _tresh[vertical_crop[0]:vertical_crop[1], horizontal_crop[0]:horizontal_crop[1]]  # crop
 to_crop = cv2.rectangle(src, (horizontal_crop[0], vertical_crop[1]), (horizontal_crop[1], vertical_crop[0]), (0, 255, 255), 3)
 
-## I'll keep this, just in case we need it
-# _kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-# closed = cv2.morphologyEx(_tresh, cv2.MORPH_CLOSE, _kernel)
-# opened = cv2.morphologyEx(_tresh, cv2.MORPH_OPEN, _kernel)
-## Finding lines
-# without_notes = _tresh - opened
-
 # find staffs
 contours, staff_crops = staffs_and_notes.find_staffs(tresh, _tresh)
 valid_blobs = len(staff_crops)
@@ -52,11 +45,42 @@ plt.subplot2grid((1, display_columns), (0, 0)), plt.title('original'), plt.imsho
 plt.subplot2grid((1, display_columns), (0, 1)), plt.title('cropped & segmented'), plt.imshow(res, cmap='gray', interpolation='nearest')
 for blob in range(valid_blobs):
     plt.subplot2grid((valid_blobs, display_columns), (blob, display_columns-1), rowspan=1), plt.title('notes %d' % (blob+1))
-    staff_crop = cv2.cvtColor(staff_crops[blob], cv2.COLOR_GRAY2RGB)
-    for note_rect in note_rects[blob]:
+    staff_crop = cv2.cvtColor(staff_crops[valid_blobs-1-blob], cv2.COLOR_GRAY2RGB)
+    for note_rect in note_rects[valid_blobs-1-blob]:
         staff_crop = cv2.rectangle(staff_crop, (note_rect[0][0], note_rect[0][1]), (note_rect[1][0], note_rect[1][1]), (255, 0, 0), 1)
     plt.imshow(staff_crop)
 plt.show()
 
-for i, staff_crop in enumerate(staff_crops):
-    staff_lines.find_lines(staff_crop, note_rects[valid_blobs-1-i], True)
+for i in range(len(staff_crops)):
+    staff_crop = staff_crops[valid_blobs-1-i]
+    # get notes only
+    _kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
+    opened = cv2.morphologyEx(staff_crop.copy(), cv2.MORPH_OPEN, _kernel)
+    opened = cv2.dilate(opened, _kernel, iterations=1)  # dilate to highlight notes
+    notes_opened_rects = staffs_and_notes.find_notes([opened], 1)
+    opened = cv2.cvtColor(opened, cv2.COLOR_GRAY2RGB)
+    for note_rect in notes_opened_rects[0]:
+        opened = cv2.rectangle(opened, (note_rect[0][0], note_rect[0][1]), (note_rect[1][0], note_rect[1][1]), (0, 0, 255), 1)
+
+    # find lines
+    lines = staff_lines.find_lines(staff_crop, note_rects[valid_blobs-1-i], False)
+
+    # find pitch of notes
+    for num_note, note_rect in enumerate(notes_opened_rects[0]):
+        num_note += 1
+        note_y_center = note_rect[0][1] + ((note_rect[1][1]-note_rect[0][1]) // 2)
+        print("note %d center: %d" % (num_note, note_y_center))
+        min_distance = staff_crop.shape[0]
+        closest_line = -1
+        for num_line, line in enumerate(list(lines)):
+            num_line += 1
+            line_y_center = line[0][1] + ((line[1][1]-line[0][1]) // 2)
+            print("\tline %d center: %d" % (num_line, line_y_center))
+            distance = abs(note_y_center-line_y_center)
+            if distance < min_distance:
+                min_distance = distance
+                closest_line = num_line
+        print("\tnote %d, closest to line %d" % (num_note, closest_line))
+    print("-----")
+
+    cv2.imshow('only notes %d' % (i+1), opened), cv2.waitKey(0), cv2.destroyAllWindows()

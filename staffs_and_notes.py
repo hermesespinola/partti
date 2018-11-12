@@ -8,7 +8,7 @@ def find_staffs(tresh, _tresh):
     contours = []
     staff_crops = []
     for con in _contours:
-        if cv2.contourArea(con) > 24000:
+        if cv2.contourArea(con) > 19000:
             cv2.drawContours(tresh, [con], 0, 255, -1)  # contour filling
             contours.append(con)
             x, y, w, h = cv2.boundingRect(con)
