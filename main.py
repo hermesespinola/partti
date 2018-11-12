@@ -64,23 +64,33 @@ for i in range(len(staff_crops)):
 
     # find lines
     lines = staff_lines.find_lines(staff_crop, note_rects[valid_blobs-1-i], False)
+    lines_found = len(lines)
+    print(lines)
 
     # find pitch of notes
     for num_note, note_rect in enumerate(notes_opened_rects[0]):
-        num_note += 1
-        note_y_center = note_rect[0][1] + ((note_rect[1][1]-note_rect[0][1]) // 2)
-        print("note %d center: %d" % (num_note, note_y_center))
+        note_y_center = (note_rect[1][1]+note_rect[0][1]) // 2
+        print("note %d center: %d" % (num_note+1, note_y_center))
         min_distance = staff_crop.shape[0]
         closest_line = -1
         for num_line, line in enumerate(list(lines)):
-            num_line += 1
-            line_y_center = line[0][1] + ((line[1][1]-line[0][1]) // 2)
-            print("\tline %d center: %d" % (num_line, line_y_center))
+            line_y_center = (line[0][1]+line[1][1]) // 2
+            print("\tline %d center: %d" % (num_line+1, line_y_center))
             distance = abs(note_y_center-line_y_center)
             if distance < min_distance:
                 min_distance = distance
-                closest_line = num_line
-        print("\tnote %d, closest to line %d" % (num_note, closest_line))
+                closest_line = num_line+1
+            # check for intermediate lines
+            if num_line < lines_found-1:
+                next_line = lines[num_line+1]
+                next_line_y_center = (next_line[0][1]+next_line[1][1]) // 2
+                intermediate_line_y_center = (line_y_center+next_line_y_center) // 2
+                distance = abs(note_y_center - intermediate_line_y_center)
+                print("\tline %0.1f center: %d" % (num_line+1 + 0.5, intermediate_line_y_center))
+                if distance < min_distance:
+                    min_distance = distance
+                    closest_line = num_line+1 + 0.5
+        print("\tnote %d, closest to line %0.1f" % (num_note, closest_line))
     print("-----")
 
     cv2.imshow('only notes %d' % (i+1), opened), cv2.waitKey(0), cv2.destroyAllWindows()

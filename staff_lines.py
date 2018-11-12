@@ -72,12 +72,34 @@ def find_lines(staff, notes_rects, show=False):
     p2s = sorted(p2s, key=lambda x: x[0])
     p2s = map(lambda x: (gap_centers[1], x[0]), p2s)
     lines = list(zip(p2s, p1s))
+    last_line_p = len(lines)-1
 
-    # Show results
     print('lines')
-    for line in lines:
+    total_distance = 0
+    total_width = 0
+    for i, line in enumerate(lines):
         print(line)
         cv2.line(staff, line[0], line[1], (255, 0, 0), 3)
+        if i < last_line_p:
+            total_distance += lines[i+1][0][1]-lines[i][0][1]
+        total_width += lines[i][0][1]-lines[i][1][1]
+
+    # add 2 extra lines above and below
+    average_distance = total_distance // (last_line_p)
+    average_width = total_width // last_line_p+1
+    print("total_distance:%d  average:%d" % (total_distance, average_distance))
+    print("total_width:%d  average:%d" % (total_width, average_width))
+    for i in range(2):
+        first_line = lines[0]
+        print("adding first ((%d, %d), (%d, %d))" % (first_line[0][0], first_line[0][1]-average_distance, first_line[1][0], first_line[0][1]-average_distance+average_width))
+        lines.insert(0, ((first_line[0][0], first_line[0][1]-average_distance), (first_line[1][0], first_line[0][1]-average_distance+average_width)) )
+        last_line_p += 1
+        last_line = lines[last_line_p]
+        print("adding last ((%d, %d), (%d, %d))" % (last_line[0][0], last_line[0][1]+average_distance, last_line[1][0], last_line[0][1]+average_distance+average_width))
+        lines.insert(last_line_p+1, ((last_line[0][0], last_line[0][1]+average_distance), (last_line[1][0], last_line[0][1]+average_distance+average_width)) )
+        last_line_p += 1
+
+    # Show results
     print('')
     if show:
         # plot distributions
