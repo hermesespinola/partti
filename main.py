@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import paper_borders_gradient
 import staffs_and_notes
 import staff_lines
-from label_image import predict_from_mat
+# from label_image import predict_from_mat
 from pprint import pprint
 
 ap = argparse.ArgumentParser()
@@ -101,25 +101,26 @@ for i in range(len(staff_crops)):
 
     cv2.imshow('only notes %d' % (i+1), opened), cv2.waitKey(0), cv2.destroyAllWindows()
 
-def rect_contains(container, rect, offsetX, offsetY):
-    x11, y11 = container[0]
-    x12, y12 = container[1]
-    x21, y21 = rect[0]
-    x22, y22 = rect[1]
-    return x11 - offsetX <= x21 and x12 + offsetX >= x22 and y11 - offsetY <= y21 and y12 + offsetY >= y22
+def rect_contains(container, rect, offsetX):
+    x11, _ = container[0]
+    x12, _ = container[1]
+    x21, _ = rect[0]
+    x22, _ = rect[1]
+    return x11 - offsetX <= x21 and x12 + offsetX >= x22
 
 note_rects_filtered = [[] for _ in range(valid_blobs)]
 for i, staff_rects in enumerate(note_rects):
     for note_rect in staff_rects:
-        contained = [rect_contains(note_rect, head_rect, 5, 5) for head_rect in heads_rects[i]]
+        contained = [rect_contains(note_rect, head_rect, 11) for head_rect in heads_rects[i]]
         if any(contained):
             note_rects_filtered[i].append(note_rect)
 
 # filter notes rects with heads
-print(note_rects_filtered)
-print(heads_rects)
 note_crops = [original_crops[i][note_rect[0][1]:note_rect[1][1], note_rect[0][0]-2:note_rect[1][0]+2, :]
     for i, staff_rects in enumerate(note_rects_filtered) for note_rect in staff_rects]
+
+print(sum([len(x) for x in heads_rects]))
+print(len(note_crops))
 
 predictions = [predict_from_mat(note) for note in note_crops]
 pprint(predictions)
