@@ -20,6 +20,15 @@ src = cv2.imread(args['image'], cv2.IMREAD_UNCHANGED)
 original = src.copy()
 gray = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY)
 
+def rect_contains(container, rect, offsetX):
+    print(container, rect)
+    x11, _ = container[0]
+    x12, _ = container[1]
+    x21, _ = rect[0]
+    x22, _ = rect[1]
+    return x11 - offsetX <= x21 and x12 + offsetX >= x22
+
+
 # binarization
 _, _tresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)
 kernel = np.ones((5, 5), np.uint8)
@@ -57,7 +66,6 @@ for blob in range(valid_blobs):
     plt.imshow(staff_crop)
 plt.show()
 
-heads_rects = [[] for _ in range(len(staff_crops))]
 pygame.init()
 for i in range(len(staff_crops)):
     staff_crop = staff_crops[valid_blobs-1-i]
@@ -67,9 +75,33 @@ for i in range(len(staff_crops)):
     opened = cv2.dilate(opened, _kernel, iterations=1)  # dilate to highlight notes
     notes_opened_rects = staffs_and_notes.find_notes([opened], 1)
     opened = cv2.cvtColor(opened, cv2.COLOR_GRAY2RGB)
+    heads_rects = []
     for note_rect in notes_opened_rects[0]:
         opened = cv2.rectangle(opened, (note_rect[0][0], note_rect[0][1]), (note_rect[1][0], note_rect[1][1]), (0, 0, 255), 1)
-        heads_rects[i].append(((note_rect[0][0], note_rect[0][1]), (note_rect[1][0], note_rect[1][1])))
+        heads_rects.append(((note_rect[0][0], note_rect[0][1]), (note_rect[1][0], note_rect[1][1])))
+
+    # filter staff notes
+    note_rects_filtered = []
+    for note_rect in note_rects[valid_blobs-1-blob]:
+        print(note_rect)
+        contained = [rect_contains(note_rect, head_rect, 11)
+                     for head_rect in heads_rects]
+        print(contained)
+        if any(contained):
+            note_rects_filtered.append(note_rect)
+
+    original_staff = original_crops[valid_blobs-1-blob]
+    # filter notes rects with heads
+    note_crops = [original_staff[note_rect[0][1]:note_rect[1][1],
+                                 note_rect[0][0]-2:note_rect[1][0]+2, :]
+                  for note_rect in note_rects_filtered]
+
+    print("heads", len(heads_rects))
+    print("notes", len(note_crops))
+
+    predictions = [predict_from_mat(note) for note in note_crops]
+    print("predictions")
+    pprint(predictions)
 
     # find lines
     lines = staff_lines.find_lines(staff_crop, note_rects[valid_blobs-1-i], False)
@@ -86,7 +118,7 @@ for i in range(len(staff_crops)):
         closest_line = -1
         for num_line, line in enumerate(list(lines)):
             line_y_center = (line[0][1]+line[1][1]) // 2
-            print("\tline %d center: %d" % (num_line+1, line_y_center))
+            # print("\tline %d center: %d" % (num_line+1, line_y_center))
             distance = abs(note_y_center-line_y_center)
             if distance < min_distance:
                 min_distance = distance
@@ -107,28 +139,3 @@ for i in range(len(staff_crops)):
         time.sleep(1)
     print("-----")
     cv2.destroyAllWindows()
-
-def rect_contains(container, rect, offsetX):
-    x11, _ = container[0]
-    x12, _ = container[1]
-    x21, _ = rect[0]
-    x22, _ = rect[1]
-    return x11 - offsetX <= x21 and x12 + offsetX >= x22
-
-
-note_rects_filtered = [[] for _ in range(valid_blobs)]
-for i, staff_rects in enumerate(note_rects):
-    for note_rect in staff_rects:
-        contained = [rect_contains(note_rect, head_rect, 11) for head_rect in heads_rects[i]]
-        if any(contained):
-            note_rects_filtered[i].append(note_rect)
-
-# filter notes rects with heads
-note_crops = [original_crops[i][note_rect[0][1]:note_rect[1][1], note_rect[0][0]-2:note_rect[1][0]+2, :]
-    for i, staff_rects in enumerate(note_rects_filtered) for note_rect in staff_rects]
-
-print(sum([len(x) for x in heads_rects]))
-print(len(note_crops))
-
-predictions = [predict_from_mat(note) for note in note_crops]
-pprint(predictions)
