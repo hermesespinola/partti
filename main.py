@@ -66,6 +66,23 @@ for blob in range(valid_blobs):
     plt.imshow(staff_crop)
 plt.show()
 
+note_durations = {
+    '1 negras': 1,
+    '2 blancas': 2,
+    '3 redondas': 4,
+    '4 corchea simple': 0.5,
+    '5 corchea doble': 0.25,
+    '6 corchea simple izquierda': 0.5,
+    '7 corchea simple medio': 0.5,
+    '8 corchea simple derecha': 0.5,
+    '9 corchea doble izquierda': 0.25,
+    '10 corchea doble medio': 0.25,
+    '11 corchea doble derecha': 0.25,
+    '12 corchea doble cambio': 0.25,
+    '13 clave sol': 1,
+    '14 clave fa': 1,
+}
+
 pygame.init()
 for i in range(len(staff_crops)):
     staff_crop = staff_crops[valid_blobs-1-i]
@@ -129,13 +146,16 @@ for i in range(len(staff_crops)):
                 next_line_y_center = (next_line[0][1]+next_line[1][1]) // 2
                 intermediate_line_y_center = (line_y_center+next_line_y_center) // 2
                 distance = abs(note_y_center - intermediate_line_y_center)
-                print("\tline %0.1f center: %d" % (num_line+1 + 0.5, intermediate_line_y_center))
+                # print("\tline %0.1f center: %d" % (num_line+1 + 0.5, intermediate_line_y_center))
                 if distance < min_distance:
                     min_distance = distance
                     closest_line = num_line+1 + 0.5
         print("\tnote %d, closest to line %0.1f" % (num_note, closest_line))
         pygame.mixer.music.load("sounds/%s.mp3" % closest_line)
         pygame.mixer.music.play()
-        time.sleep(1)
+        # time.sleep(1)
+        if num_note < len(predictions):  # TODO: checar si esta nota fue filtrada o no
+            print("\ttipo: %s" % predictions[num_note][0])
+            time.sleep(note_durations[predictions[num_note][0]])
     print("-----")
     cv2.destroyAllWindows()
