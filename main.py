@@ -101,12 +101,14 @@ for i in range(len(staff_crops)):
 
     cv2.imshow('only notes %d' % (i+1), opened), cv2.waitKey(0), cv2.destroyAllWindows()
 
+
 def rect_contains(container, rect, offsetX, offsetY):
     x11, y11 = container[0]
     x12, y12 = container[1]
     x21, y21 = rect[0]
     x22, y22 = rect[1]
     return x11 - offsetX <= x21 and x12 + offsetX >= x22 and y11 - offsetY <= y21 and y12 + offsetY >= y22
+
 
 note_rects_filtered = [[] for _ in range(valid_blobs)]
 for i, staff_rects in enumerate(note_rects):
