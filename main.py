@@ -8,6 +8,8 @@ import staffs_and_notes
 import staff_lines
 from label_image import predict_from_mat
 from pprint import pprint
+import pygame
+import time
 
 ap = argparse.ArgumentParser()
 ap.add_argument("-i", "--image", required=True,
@@ -56,6 +58,7 @@ for blob in range(valid_blobs):
 plt.show()
 
 heads_rects = [[] for _ in range(len(staff_crops))]
+pygame.init()
 for i in range(len(staff_crops)):
     staff_crop = staff_crops[valid_blobs-1-i]
     # get notes only
@@ -74,6 +77,8 @@ for i in range(len(staff_crops)):
     print(lines)
 
     # find pitch of notes
+    cv2.imshow('only notes %d' % (i+1), opened), cv2.waitKey(0)
+    time.sleep(1)
     for num_note, note_rect in enumerate(notes_opened_rects[0]):
         note_y_center = (note_rect[1][1]+note_rect[0][1]) // 2
         print("note %d center: %d" % (num_note+1, note_y_center))
@@ -97,9 +102,11 @@ for i in range(len(staff_crops)):
                     min_distance = distance
                     closest_line = num_line+1 + 0.5
         print("\tnote %d, closest to line %0.1f" % (num_note, closest_line))
+        pygame.mixer.music.load("sounds/%s.mp3" % closest_line)
+        pygame.mixer.music.play()
+        time.sleep(1)
     print("-----")
-
-    cv2.imshow('only notes %d' % (i+1), opened), cv2.waitKey(0), cv2.destroyAllWindows()
+    cv2.destroyAllWindows()
 
 
 def rect_contains(container, rect, offsetX, offsetY):
