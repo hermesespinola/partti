@@ -3,17 +3,19 @@ import cv2
 import numpy as np
 
 
-def find_staffs(tresh, _tresh):
+def find_staffs(tresh, _tresh, original):
     im, _contours, hierarchy = cv2.findContours(tresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     contours = []
     staff_crops = []
+    original_crops = []
     for con in _contours:
         if cv2.contourArea(con) > 19000:
             cv2.drawContours(tresh, [con], 0, 255, -1)  # contour filling
             contours.append(con)
             x, y, w, h = cv2.boundingRect(con)
             staff_crops.append(_tresh[y:y+h, x:x+w])
-    return contours, staff_crops
+            original_crops.append(original[y:y+h, x:x+w])
+    return contours, staff_crops, original_crops
 
 
 def find_notes(staff_crops, valid_blobs):

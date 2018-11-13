@@ -1,0 +1,14 @@
+5 corchea doble
+3 redondas
+1 negras
+9 corchea doble izquierda
+8 corchea simple derecha
+10 corchea doble medio
+6 corchea simple izquierda
+12 corchea doble cambio
+13 clave sol
+14 clave fa
+11 corchea doble derecha
+2 blancas
+4 corchea simple
+7 corchea simple medio

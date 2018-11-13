@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import paper_borders_gradient
 import staffs_and_notes
 import staff_lines
+from label_image import predict_from_mat
+from pprint import pprint
 
 ap = argparse.ArgumentParser()
 ap.add_argument("-i", "--image", required=True,
@@ -13,6 +15,7 @@ ap.add_argument("-i", "--image", required=True,
 args = vars(ap.parse_args())
 
 src = cv2.imread(args['image'], cv2.IMREAD_UNCHANGED)
+original = src.copy()
 gray = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY)
 
 # binarization
@@ -25,10 +28,11 @@ vertical_crop, horizontal_crop = paper_borders_gradient.corners(tresh)
 gray = gray[vertical_crop[0]:vertical_crop[1], horizontal_crop[0]:horizontal_crop[1]]  # crop
 tresh = tresh[vertical_crop[0]:vertical_crop[1], horizontal_crop[0]:horizontal_crop[1]]  # crop
 _tresh = _tresh[vertical_crop[0]:vertical_crop[1], horizontal_crop[0]:horizontal_crop[1]]  # crop
+original = original[vertical_crop[0]:vertical_crop[1], horizontal_crop[0]:horizontal_crop[1]]  # crop
 to_crop = cv2.rectangle(src, (horizontal_crop[0], vertical_crop[1]), (horizontal_crop[1], vertical_crop[0]), (0, 255, 255), 3)
 
 # find staffs
-contours, staff_crops = staffs_and_notes.find_staffs(tresh, _tresh)
+contours, staff_crops, original_crops = staffs_and_notes.find_staffs(tresh, _tresh, original)
 valid_blobs = len(staff_crops)
 print("valid blobs found: %d" % valid_blobs)
 
@@ -51,6 +55,7 @@ for blob in range(valid_blobs):
     plt.imshow(staff_crop)
 plt.show()
 
+heads_rects = [[] for _ in range(len(staff_crops))]
 for i in range(len(staff_crops)):
     staff_crop = staff_crops[valid_blobs-1-i]
     # get notes only
@@ -61,6 +66,7 @@ for i in range(len(staff_crops)):
     opened = cv2.cvtColor(opened, cv2.COLOR_GRAY2RGB)
     for note_rect in notes_opened_rects[0]:
         opened = cv2.rectangle(opened, (note_rect[0][0], note_rect[0][1]), (note_rect[1][0], note_rect[1][1]), (0, 0, 255), 1)
+        heads_rects[i].append(((note_rect[0][0], note_rect[0][1]), (note_rect[1][0], note_rect[1][1])))
 
     # find lines
     lines = staff_lines.find_lines(staff_crop, note_rects[valid_blobs-1-i], False)
@@ -94,3 +100,26 @@ for i in range(len(staff_crops)):
     print("-----")
 
     cv2.imshow('only notes %d' % (i+1), opened), cv2.waitKey(0), cv2.destroyAllWindows()
+
+def rect_contains(container, rect, offsetX, offsetY):
+    x11, y11 = container[0]
+    x12, y12 = container[1]
+    x21, y21 = rect[0]
+    x22, y22 = rect[1]
+    return x11 - offsetX <= x21 and x12 + offsetX >= x22 and y11 - offsetY <= y21 and y12 + offsetY >= y22
+
+note_rects_filtered = [[] for _ in range(valid_blobs)]
+for i, staff_rects in enumerate(note_rects):
+    for note_rect in staff_rects:
+        contained = [rect_contains(note_rect, head_rect, 5, 5) for head_rect in heads_rects[i]]
+        if any(contained):
+            note_rects_filtered[i].append(note_rect)
+
+# filter notes rects with heads
+print(note_rects_filtered)
+print(heads_rects)
+note_crops = [original_crops[i][note_rect[0][1]:note_rect[1][1], note_rect[0][0]-2:note_rect[1][0]+2, :]
+    for i, staff_rects in enumerate(note_rects_filtered) for note_rect in staff_rects]
+
+predictions = [predict_from_mat(note) for note in note_crops]
+pprint(predictions)
