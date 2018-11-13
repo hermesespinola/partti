@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import paper_borders_gradient
 import staffs_and_notes
 import staff_lines
-# from label_image import predict_from_mat
+from label_image import predict_from_mat
 from pprint import pprint
 
 ap = argparse.ArgumentParser()
@@ -107,6 +107,7 @@ def rect_contains(container, rect, offsetX):
     x21, _ = rect[0]
     x22, _ = rect[1]
     return x11 - offsetX <= x21 and x12 + offsetX >= x22
+
 
 note_rects_filtered = [[] for _ in range(valid_blobs)]
 for i, staff_rects in enumerate(note_rects):
